@@ -18,13 +18,14 @@ echo ""
 
 # Update package lists
 echo "[1/5] Updating package lists..."
-if ! apt update -y 2>&1 | grep -v "^Get:"; then
+apt update -y 2>&1 | grep -v "^Get:" || {
     echo "Warning: apt update had some issues, but continuing..."
-fi
+}
 
 # Install Python and required system packages
 echo "[2/5] Installing Python and system dependencies..."
-if ! apt install -y python python-pip git clang make pkg-config libffi openssl 2>&1 | grep -v "^Selecting" | grep -v "^Preparing" | grep -v "^Unpacking" | grep -v "^Setting up"; then
+apt install -y python python-pip git clang make pkg-config libffi openssl 2>&1 | grep -v "^Selecting" | grep -v "^Preparing" | grep -v "^Unpacking" | grep -v "^Setting up"
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo "Error: Failed to install system packages"
     exit 1
 fi
@@ -42,12 +43,13 @@ FAILED_PACKAGES=""
 install_package() {
     local package=$1
     echo "  - Installing $package..."
-    if ! pip install --no-cache-dir "$package" 2>&1 | tail -1; then
+    if pip install --no-cache-dir "$package" 2>&1 | tail -1; then
+        return 0
+    else
         echo "    Warning: Failed to install $package"
         FAILED_PACKAGES="$FAILED_PACKAGES $package"
         return 1
     fi
-    return 0
 }
 
 install_package "numpy"

@@ -422,8 +422,20 @@ final class TermuxInstaller {
                     "    bash ~/.irh_setup.sh\n" +
                     "fi\n";
             
-            try (FileOutputStream outputStream = new FileOutputStream(bashProfile, true)) {
-                outputStream.write(setupTrigger.getBytes());
+            // Only append if not already present
+            boolean needsAppend = true;
+            if (bashProfile.exists()) {
+                String content = FileUtils.readStringFromFile(bashProfile.getAbsolutePath());
+                if (content != null && content.contains("# Auto-run IRH setup on first launch")) {
+                    needsAppend = false;
+                    Logger.logInfo(LOG_TAG, "IRH setup trigger already present in .bash_profile");
+                }
+            }
+            
+            if (needsAppend) {
+                try (FileOutputStream outputStream = new FileOutputStream(bashProfile, true)) {
+                    outputStream.write(setupTrigger.getBytes());
+                }
             }
             
             Logger.logInfo(LOG_TAG, "IRH setup script installed successfully at: " + irhSetupScript.getAbsolutePath());
