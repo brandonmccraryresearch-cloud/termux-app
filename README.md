@@ -9,6 +9,8 @@
 
 [Termux](https://termux.com) is an Android terminal application and Linux environment.
 
+**⚡ IRH Edition:** This fork includes the Intrinsic Resonance Holography (IRH) environment pre-configured with Python and scientific computing packages. See [IRH_MODIFICATIONS.md](IRH_MODIFICATIONS.md) for details.
+
 Note that this repository is for the app itself (the user interface and the terminal emulation). For the packages installable inside the app, see [termux/termux-packages](https://github.com/termux/termux-packages).
 
 Quick how-to about Termux package management is available at [Package Management](https://github.com/termux/termux-packages/wiki/Package-Management). It also has info on how to fix **`repository is under maintenance or down`** errors when running `apt` or `pkg` commands.
@@ -22,6 +24,7 @@ Quick how-to about Termux package management is available at [Package Management
 ***
 
 ## Contents
+- [IRH Edition Features](#irh-edition-features)
 - [Termux App and Plugins](#termux-app-and-plugins)
 - [Installation](#installation)
 - [Uninstallation](#uninstallation)
@@ -33,6 +36,44 @@ Quick how-to about Termux package management is available at [Package Management
 ##
 
 
+## IRH Edition Features
+
+This fork of Termux has been enhanced to support the [Intrinsic Resonance Holography project](https://github.com/brandonmccraryresearch-cloud/Intrinsic_Resonance_Holograpy) with the following features:
+
+### 🚀 Pre-configured Python Environment
+- Python 3 with pip pre-installed
+- Essential scientific computing packages included:
+  - **NumPy** - Numerical computing
+  - **SciPy** - Scientific computing
+  - **Matplotlib** - Data visualization
+  - **Pandas** - Data analysis
+  - **Scikit-learn** - Machine learning
+  - **Pillow** - Image processing
+
+### 🎯 Zero-Setup Experience
+- Automatic installation on first launch
+- No manual configuration required
+- Ready to use immediately after installation
+- IRH workspace pre-configured at `~/irh-workspace`
+
+### 💡 Built-in Demo & Documentation
+- Interactive demo script showcasing IRH capabilities
+- Quick-access aliases (`irh`, `irh-demo`)
+- Welcome message with usage instructions
+- Environment variables configured automatically
+
+### 📚 Documentation
+- [IRH Modifications Guide](IRH_MODIFICATIONS.md) - Technical details of the implementation
+- [IRH Testing Guide](IRH_TESTING.md) - Testing procedures and verification steps
+
+### 🛠️ Developer Tools
+- Git, Clang, Make, and build tools included
+- Package management via apt and pip
+- Full compatibility with standard Termux features
+
+For detailed information about the IRH modifications, see [IRH_MODIFICATIONS.md](IRH_MODIFICATIONS.md).
+
+##
 
 ## Termux App and Plugins
 
