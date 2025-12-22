@@ -42,8 +42,12 @@ FAILED_PACKAGES=""
 
 install_package() {
     local package=$1
+    local output
     echo "  - Installing $package..."
-    if pip install --no-cache-dir "$package" 2>&1 | tail -1; then
+    output=$(pip install --no-cache-dir "$package" 2>&1)
+    local exit_code=$?
+    echo "$output" | tail -1
+    if [ $exit_code -eq 0 ]; then
         return 0
     else
         echo "    Warning: Failed to install $package"

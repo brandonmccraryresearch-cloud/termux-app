@@ -402,7 +402,7 @@ final class TermuxInstaller {
             
             // Write the script content
             try (FileOutputStream outputStream = new FileOutputStream(irhSetupScript)) {
-                byte[] buffer = new byte[8096];
+                byte[] buffer = new byte[8192];
                 int readBytes;
                 while ((readBytes = inputStream.read(buffer)) != -1) {
                     outputStream.write(buffer, 0, readBytes);
