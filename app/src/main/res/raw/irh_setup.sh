@@ -4,38 +4,65 @@
 
 set -e
 
+# Log file for troubleshooting
+LOG_FILE=~/.irh_setup.log
+exec > >(tee -a "$LOG_FILE") 2>&1
+
 echo ""
 echo "=========================================="
 echo "Intrinsic Resonance Holography Setup"
 echo "=========================================="
 echo ""
+echo "Setup log: $LOG_FILE"
+echo ""
 
 # Update package lists
 echo "[1/5] Updating package lists..."
-apt update -y 2>&1 | grep -v "^Get:" || true
+if ! apt update -y 2>&1 | grep -v "^Get:"; then
+    echo "Warning: apt update had some issues, but continuing..."
+fi
 
 # Install Python and required system packages
 echo "[2/5] Installing Python and system dependencies..."
-apt install -y python python-pip git clang make pkg-config libffi openssl 2>&1 | grep -v "^Selecting" | grep -v "^Preparing" | grep -v "^Unpacking" | grep -v "^Setting up" || true
+if ! apt install -y python python-pip git clang make pkg-config libffi openssl 2>&1 | grep -v "^Selecting" | grep -v "^Preparing" | grep -v "^Unpacking" | grep -v "^Setting up"; then
+    echo "Error: Failed to install system packages"
+    exit 1
+fi
 
 # Upgrade pip
 echo "[3/5] Upgrading pip..."
-pip install --upgrade pip 2>&1 | tail -1 || true
+pip install --upgrade pip || {
+    echo "Warning: Failed to upgrade pip, continuing with existing version"
+}
 
 # Install IRH Python packages
 echo "[4/5] Installing IRH Python packages..."
-echo "  - Installing numpy..."
-pip install --no-cache-dir numpy 2>&1 | tail -1 || true
-echo "  - Installing scipy..."
-pip install --no-cache-dir scipy 2>&1 | tail -1 || true
-echo "  - Installing matplotlib..."
-pip install --no-cache-dir matplotlib 2>&1 | tail -1 || true
-echo "  - Installing pandas..."
-pip install --no-cache-dir pandas 2>&1 | tail -1 || true
-echo "  - Installing scikit-learn..."
-pip install --no-cache-dir scikit-learn 2>&1 | tail -1 || true
-echo "  - Installing pillow..."
-pip install --no-cache-dir pillow 2>&1 | tail -1 || true
+FAILED_PACKAGES=""
+
+install_package() {
+    local package=$1
+    echo "  - Installing $package..."
+    if ! pip install --no-cache-dir "$package" 2>&1 | tail -1; then
+        echo "    Warning: Failed to install $package"
+        FAILED_PACKAGES="$FAILED_PACKAGES $package"
+        return 1
+    fi
+    return 0
+}
+
+install_package "numpy"
+install_package "scipy"
+install_package "matplotlib"
+install_package "pandas"
+install_package "scikit-learn"
+install_package "pillow"
+
+if [ -n "$FAILED_PACKAGES" ]; then
+    echo ""
+    echo "Warning: Some packages failed to install:$FAILED_PACKAGES"
+    echo "You can try installing them manually later with: pip install <package>"
+    echo ""
+fi
 
 # Create IRH project directory structure
 echo "[5/5] Setting up IRH project structure..."
@@ -102,8 +129,9 @@ EOFPYTHON
 
 chmod +x ~/irh-workspace/irh_demo.py
 
-# Create IRH bashrc additions
-cat >> ~/.bashrc << 'EOFBASHRC'
+# Create IRH bashrc additions (only if not already present)
+if ! grep -q "# IRH Environment" ~/.bashrc 2>/dev/null; then
+    cat >> ~/.bashrc << 'EOFBASHRC'
 
 # IRH Environment
 export IRH_HOME=~/irh-workspace
@@ -117,6 +145,10 @@ if [ ! -f ~/.irh_welcome_shown ]; then
     touch ~/.irh_welcome_shown
 fi
 EOFBASHRC
+    echo "IRH environment configured in .bashrc"
+else
+    echo "IRH environment already configured in .bashrc (skipping)"
+fi
 
 # Create marker file to indicate IRH setup is complete
 touch ~/.irh_setup_complete
