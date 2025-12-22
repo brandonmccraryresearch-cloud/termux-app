@@ -27,6 +27,7 @@ import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
@@ -221,6 +222,14 @@ final class TermuxInstaller {
                     // Recreate env file since termux prefix was wiped earlier
                     TermuxShellEnvironment.writeEnvironmentToFile(activity);
 
+                    // Install IRH setup script
+                    Logger.logInfo(LOG_TAG, "Installing Intrinsic Resonance Holography (IRH) setup script.");
+                    error = installIRHSetupScript(activity);
+                    if (error != null) {
+                        Logger.logWarn(LOG_TAG, "Failed to install IRH setup script: " + error.getMessage());
+                        // Don't fail bootstrap if IRH script installation fails, just log warning
+                    }
+
                     activity.runOnUiThread(whenDone);
 
                 } catch (final Exception e) {
@@ -373,6 +382,56 @@ final class TermuxInstaller {
 
     private static Error ensureDirectoryExists(File directory) {
         return FileUtils.createDirectoryFile(directory.getAbsolutePath());
+    }
+
+    /**
+     * Install the IRH setup script to the Termux files directory.
+     * This script will be executed automatically on first terminal session to set up
+     * the Intrinsic Resonance Holography Python environment.
+     *
+     * @param context The {@link Context} for operations.
+     * @return Returns the {@link Error} if installation failed, otherwise {@code null}.
+     */
+    private static Error installIRHSetupScript(Context context) {
+        try {
+            // Read the IRH setup script from resources
+            InputStream inputStream = context.getResources().openRawResource(R.raw.irh_setup);
+            
+            // Create the script file in the Termux home directory
+            File irhSetupScript = new File(TermuxConstants.TERMUX_HOME_DIR_PATH, ".irh_setup.sh");
+            
+            // Write the script content
+            try (FileOutputStream outputStream = new FileOutputStream(irhSetupScript)) {
+                byte[] buffer = new byte[8096];
+                int readBytes;
+                while ((readBytes = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, readBytes);
+                }
+            }
+            inputStream.close();
+            
+            // Set executable permissions
+            //noinspection OctalInteger
+            Os.chmod(irhSetupScript.getAbsolutePath(), 0700);
+            
+            // Create a setup trigger script in .bash_profile to run on first login
+            File bashProfile = new File(TermuxConstants.TERMUX_HOME_DIR_PATH, ".bash_profile");
+            String setupTrigger = "\n# Auto-run IRH setup on first launch\n" +
+                    "if [ ! -f ~/.irh_setup_complete ] && [ -f ~/.irh_setup.sh ]; then\n" +
+                    "    echo \"Running IRH setup...\"\n" +
+                    "    bash ~/.irh_setup.sh\n" +
+                    "fi\n";
+            
+            try (FileOutputStream outputStream = new FileOutputStream(bashProfile, true)) {
+                outputStream.write(setupTrigger.getBytes());
+            }
+            
+            Logger.logInfo(LOG_TAG, "IRH setup script installed successfully at: " + irhSetupScript.getAbsolutePath());
+            return null;
+            
+        } catch (Exception e) {
+            return new Error("Failed to install IRH setup script", e);
+        }
     }
 
     public static byte[] loadZipBytes() {
