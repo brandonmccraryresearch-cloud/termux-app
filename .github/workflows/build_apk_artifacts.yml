@@ -1,0 +1,161 @@
+name: Build APK Artifacts
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_variant:
+        description: 'Package variant to build'
+        required: false
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - apt-android-7
+          - apt-android-5
+  push:
+    branches:
+      - master
+    paths:
+      - 'app/**'
+      - 'terminal-view/**'
+      - 'terminal-emulator/**'
+      - 'termux-shared/**'
+      - '*.gradle'
+      - 'gradle/**'
+
+jobs:
+  build-artifacts:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        package_variant: ${{ github.event_name == 'workflow_dispatch' && (github.event.inputs.package_variant == 'both' && fromJSON('["apt-android-7", "apt-android-5"]') || fromJSON(format('["{0}"]', github.event.inputs.package_variant))) || fromJSON('["apt-android-7", "apt-android-5"]') }}
+
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-home-cache-cleanup: true
+
+      - name: Build APK artifacts
+        shell: bash
+        env:
+          PACKAGE_VARIANT: ${{ matrix.package_variant }}
+        run: |
+          set -e
+
+          echo "Setting build variables"
+
+          # Set RELEASE_VERSION_NAME to "<CURRENT_VERSION_NAME>+<last_commit_hash>"
+          CURRENT_VERSION_NAME_REGEX='\s+versionName "([^"]+)"$'
+          CURRENT_VERSION_NAME="$(grep -m 1 -E "$CURRENT_VERSION_NAME_REGEX" ./app/build.gradle | sed -r "s/$CURRENT_VERSION_NAME_REGEX/\1/")"
+          RELEASE_VERSION_NAME="v$CURRENT_VERSION_NAME+${GITHUB_SHA:0:7}"
+
+          # Validate semantic versioning (semver 2.0.0 spec: major.minor.patch(-prerelease)(+buildmetadata))
+          # Pattern validates: required major.minor.patch, optional -prerelease, optional +buildmetadata
+          if ! printf "%s" "${RELEASE_VERSION_NAME/v/}" | grep -qP '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$'; then
+            echo "Error: The versionName '${RELEASE_VERSION_NAME/v/}' is not a valid semantic version."
+            echo "Expected format: major.minor.patch(-prerelease)(+buildmetadata)"
+            exit 1
+          fi
+
+          APK_DIR_PATH="./app/build/outputs/apk/debug"
+          APK_VERSION_TAG="$RELEASE_VERSION_NAME-${{ matrix.package_variant }}-github-debug"
+          APK_BASENAME_PREFIX="termux-app_$APK_VERSION_TAG"
+
+          echo "APK_DIR_PATH=$APK_DIR_PATH" >> $GITHUB_ENV
+          echo "APK_VERSION_TAG=$APK_VERSION_TAG" >> $GITHUB_ENV
+          echo "APK_BASENAME_PREFIX=$APK_BASENAME_PREFIX" >> $GITHUB_ENV
+
+          echo "Building APKs for version: $APK_VERSION_TAG"
+          export TERMUX_APP_VERSION_NAME="${RELEASE_VERSION_NAME/v/}"
+          export TERMUX_APK_VERSION_TAG="$APK_VERSION_TAG"
+          export TERMUX_PACKAGE_VARIANT="${{ matrix.package_variant }}"
+
+          ./gradlew assembleDebug
+
+          echo "Validating built APKs"
+          for abi in universal arm64-v8a armeabi-v7a x86_64 x86; do
+            if [ ! -f "$APK_DIR_PATH/${APK_BASENAME_PREFIX}_$abi.apk" ]; then
+              echo "Error: APK not found at $APK_DIR_PATH/${APK_BASENAME_PREFIX}_$abi.apk"
+              echo "Files in directory:"
+              ls -la "$APK_DIR_PATH" || true
+              exit 1
+            fi
+            echo "✓ Found: ${APK_BASENAME_PREFIX}_$abi.apk"
+          done
+
+          echo "Generating SHA256 checksums"
+          cd "$APK_DIR_PATH"
+          sha256sum \
+            "${APK_BASENAME_PREFIX}_universal.apk" \
+            "${APK_BASENAME_PREFIX}_arm64-v8a.apk" \
+            "${APK_BASENAME_PREFIX}_armeabi-v7a.apk" \
+            "${APK_BASENAME_PREFIX}_x86_64.apk" \
+            "${APK_BASENAME_PREFIX}_x86.apk" \
+            > "${APK_BASENAME_PREFIX}_sha256sums"
+
+          echo "Build complete!"
+          echo "APK artifacts ready for upload"
+
+      - name: Upload universal APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_BASENAME_PREFIX }}_universal
+          path: ${{ env.APK_DIR_PATH }}/${{ env.APK_BASENAME_PREFIX }}_universal.apk
+          if-no-files-found: error
+
+      - name: Upload arm64-v8a APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_BASENAME_PREFIX }}_arm64-v8a
+          path: ${{ env.APK_DIR_PATH }}/${{ env.APK_BASENAME_PREFIX }}_arm64-v8a.apk
+          if-no-files-found: error
+
+      - name: Upload armeabi-v7a APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_BASENAME_PREFIX }}_armeabi-v7a
+          path: ${{ env.APK_DIR_PATH }}/${{ env.APK_BASENAME_PREFIX }}_armeabi-v7a.apk
+          if-no-files-found: error
+
+      - name: Upload x86_64 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_BASENAME_PREFIX }}_x86_64
+          path: ${{ env.APK_DIR_PATH }}/${{ env.APK_BASENAME_PREFIX }}_x86_64.apk
+          if-no-files-found: error
+
+      - name: Upload x86 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_BASENAME_PREFIX }}_x86
+          path: ${{ env.APK_DIR_PATH }}/${{ env.APK_BASENAME_PREFIX }}_x86.apk
+          if-no-files-found: error
+
+      - name: Upload SHA256 checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_BASENAME_PREFIX }}_sha256sums
+          path: ${{ env.APK_DIR_PATH }}/${{ env.APK_BASENAME_PREFIX }}_sha256sums
+          if-no-files-found: error
+
+      - name: Upload build metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_BASENAME_PREFIX }}_metadata
+          path: ${{ env.APK_DIR_PATH }}/output-metadata.json
+          if-no-files-found: warn
