@@ -433,6 +433,8 @@ final class TermuxInstaller {
                         needsAppend = false;
                         Logger.logInfo(LOG_TAG, "IRH setup trigger already present in .bash_profile");
                     }
+                } else {
+                    Logger.logWarn(LOG_TAG, "Failed to read .bash_profile: " + error.getMessage());
                 }
             }
             
