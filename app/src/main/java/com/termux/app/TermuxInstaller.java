@@ -425,10 +425,14 @@ final class TermuxInstaller {
             // Only append if not already present
             boolean needsAppend = true;
             if (bashProfile.exists()) {
-                String content = FileUtils.readStringFromFile(bashProfile.getAbsolutePath());
-                if (content != null && content.contains("# Auto-run IRH setup on first launch")) {
-                    needsAppend = false;
-                    Logger.logInfo(LOG_TAG, "IRH setup trigger already present in .bash_profile");
+                StringBuilder contentBuilder = new StringBuilder();
+                Error error = FileUtils.readTextFromFile("bash_profile", bashProfile.getAbsolutePath(), null, contentBuilder, false);
+                if (error == null) {
+                    String content = contentBuilder.toString();
+                    if (content.contains("# Auto-run IRH setup on first launch")) {
+                        needsAppend = false;
+                        Logger.logInfo(LOG_TAG, "IRH setup trigger already present in .bash_profile");
+                    }
                 }
             }
             
