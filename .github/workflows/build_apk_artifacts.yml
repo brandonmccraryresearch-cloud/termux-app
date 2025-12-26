@@ -57,17 +57,16 @@ jobs:
 
           echo "Setting build variables"
 
-          if [ "$GITHUB_EVENT_NAME" == "pull_request" ]; then
-              GITHUB_SHA="${{ github.event.pull_request.head.sha }}"
-          fi
-
           # Set RELEASE_VERSION_NAME to "<CURRENT_VERSION_NAME>+<last_commit_hash>"
           CURRENT_VERSION_NAME_REGEX='\s+versionName "([^"]+)"$'
           CURRENT_VERSION_NAME="$(grep -m 1 -E "$CURRENT_VERSION_NAME_REGEX" ./app/build.gradle | sed -r "s/$CURRENT_VERSION_NAME_REGEX/\1/")"
           RELEASE_VERSION_NAME="v$CURRENT_VERSION_NAME+${GITHUB_SHA:0:7}"
 
+          # Validate semantic versioning (semver 2.0.0 spec: major.minor.patch(-prerelease)(+buildmetadata))
+          # Pattern validates: required major.minor.patch, optional -prerelease, optional +buildmetadata
           if ! printf "%s" "${RELEASE_VERSION_NAME/v/}" | grep -qP '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$'; then
             echo "Error: The versionName '${RELEASE_VERSION_NAME/v/}' is not a valid semantic version."
+            echo "Expected format: major.minor.patch(-prerelease)(+buildmetadata)"
             exit 1
           fi
 
